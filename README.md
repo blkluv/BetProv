@@ -5,6 +5,8 @@ This project implements a provably fair dice game using a smart contract deploye
 - Every **random value** from 1-6 is chosen by the **smart contract** itself making it **truly provably fair**!
 - Everything is handled using blockchain and no backend is there that reduces the chances of any unlikely results. Everything is transparent and same for everybody.
 
+![GameScreenshot](./gamess.png)
+
 Contract Address
 The smart contract for this dice game is deployed on the Sepolia testnet at the following address:
 
