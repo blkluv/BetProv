@@ -11,8 +11,6 @@ The smart contract for this dice game is deployed on the Sepolia testnet at the 
 `0x2aF3733Be093331b70b4Ff07141C4F3FD3960b55`
 Check it out here: https://sepolia.etherscan.io/address/0x2aF3733Be093331b70b4Ff07141C4F3FD3960b55
 
-![gameScreenshot](./gamess.png)
-
 ### How to play?
 To play the game, you need a metamask wallet with sepolia eth tokens in it.
 - If you donot have any sepolia tokens, head to https://cloud.google.com/application/web3/faucet/ethereum/sepolia and paste your wallet address to get 0.05 SepoliaETH.
