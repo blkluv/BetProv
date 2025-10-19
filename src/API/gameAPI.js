@@ -10,58 +10,94 @@ const fallbackProvider = new ethers.providers.JsonRpcProvider(
   process.env.NEXT_PUBLIC_RPC_URL || "https://sepolia.infura.io/v3/YOUR_KEY"
 );
 
-// ✅ Connect wallet and get signer + contract instance
+/**
+ * ✅ Wait for MetaMask to inject window.ethereum (with timeout fallback)
+ */
+const waitForEthereum = async (timeout = 3000) => {
+  return new Promise((resolve) => {
+    if (typeof window.ethereum !== "undefined") return resolve(window.ethereum);
+
+    const interval = setInterval(() => {
+      if (typeof window.ethereum !== "undefined") {
+        clearInterval(interval);
+        resolve(window.ethereum);
+      }
+    }, 100);
+
+    setTimeout(() => {
+      clearInterval(interval);
+      resolve(undefined);
+    }, timeout);
+  });
+};
+
+/**
+ * ✅ Connect wallet with automatic domain permission handling
+ */
 export const connectWallet = async () => {
   try {
-    if (!window.ethereum) {
-      alert("MetaMask not detected. Please install MetaMask.");
-      return null;
+    const ethereum = await waitForEthereum();
+
+    if (!ethereum) {
+      // Graceful fallback UI: link to MetaMask install page
+      if (window.confirm("MetaMask is not installed. Would you like to install it?")) {
+        window.open("https://metamask.io/download/", "_blank");
+      }
+      throw new Error("MetaMask not detected");
     }
 
-    // Explicitly request permissions for this origin
-    await window.ethereum.request({
+    // Request permissions explicitly — important for new domains
+    await ethereum.request({
       method: "wallet_requestPermissions",
       params: [{ eth_accounts: {} }],
     });
 
-    // Request account access
-    const accounts = await window.ethereum.request({
-      method: "eth_requestAccounts",
-    });
-
-    const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
+    const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+    const provider = new ethers.providers.Web3Provider(ethereum, "any");
     const network = await provider.getNetwork();
 
-    // ✅ Auto-switch to Sepolia if on the wrong network
+    // ✅ Auto-switch to Sepolia if on wrong network
     if (network.chainId !== SEPOLIA_DECIMAL_ID) {
-      await window.ethereum.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: SEPOLIA_CHAIN_ID }],
-      });
+      try {
+        await ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: SEPOLIA_CHAIN_ID }],
+        });
+      } catch (switchError) {
+        if (switchError.code === 4902) {
+          // Chain not added — prompt user to add it
+          await ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [
+              {
+                chainId: SEPOLIA_CHAIN_ID,
+                rpcUrls: ["https://sepolia.infura.io/v3/YOUR_KEY"],
+                chainName: "Sepolia Testnet",
+                nativeCurrency: { name: "SepoliaETH", symbol: "ETH", decimals: 18 },
+                blockExplorerUrls: ["https://sepolia.etherscan.io"],
+              },
+            ],
+          });
+        } else {
+          throw switchError;
+        }
+      }
     }
 
     const signer = provider.getSigner();
-    const diceGameContract = new ethers.Contract(
-      CONTRACT_ADDRESS,
-      DiceGameABI.abi,
-      signer
-    );
+    const diceGameContract = new ethers.Contract(CONTRACT_ADDRESS, DiceGameABI.abi, signer);
 
     console.log("✅ Wallet connected:", accounts[0]);
-    return {
-      account: accounts[0],
-      provider,
-      signer,
-      contract: diceGameContract,
-    };
+    return { account: accounts[0], provider, signer, contract: diceGameContract };
   } catch (error) {
-    console.error("❌ Error connecting wallet:", error);
-    alert("Failed to connect wallet. Check MetaMask permissions.");
+    console.error("❌ Wallet connection error:", error);
     return null;
   }
 };
 
-// ✅ Deposit ETH into contract
+/**
+ * ✅ Deposit ETH into the contract
+ */
 export const depositETH = async (contract, amountEth = "0.1") => {
   try {
     const amount = ethers.utils.parseEther(amountEth);
@@ -77,7 +113,9 @@ export const depositETH = async (contract, amountEth = "0.1") => {
   }
 };
 
-// ✅ Withdraw ETH from contract
+/**
+ * ✅ Withdraw ETH from the contract
+ */
 export const withdrawETH = async (contract, amountEth = "0.1") => {
   try {
     const amount = ethers.utils.parseEther(amountEth);
@@ -93,7 +131,9 @@ export const withdrawETH = async (contract, amountEth = "0.1") => {
   }
 };
 
-// ✅ Roll the dice
+/**
+ * ✅ Roll the dice (main game interaction)
+ */
 export const rollDice = async (contract, betAmount) => {
   try {
     if (!contract) throw new Error("Contract not initialized.");
@@ -123,7 +163,9 @@ export const rollDice = async (contract, betAmount) => {
   }
 };
 
-// ✅ Optional read-only contract instance without wallet
+/**
+ * ✅ Optional: Read-only contract instance without wallet
+ */
 export const getReadOnlyContract = () => {
   return new ethers.Contract(CONTRACT_ADDRESS, DiceGameABI.abi, fallbackProvider);
 };
